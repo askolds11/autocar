@@ -37,10 +37,12 @@ pico_sdk_init()
 
 add_executable(autocar
     autocar.cpp
+    Driver.cpp
+    Motor.cpp
     )
 
 # pull in common dependencies
-target_link_libraries(autocar pico_stdlib hardware_pwm)
+target_link_libraries(autocar pico_stdlib hardware_pwm pico_stdio_usb)
 
 # create map/bin/hex file etc.
 pico_add_extra_outputs(autocar)

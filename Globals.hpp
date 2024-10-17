@@ -1,0 +1,25 @@
+#ifndef GLOBALS
+#define GLOBALS
+
+#define MAX_MOTOR_SPEED 10000
+#define MOTOR_PWM_FREQ 50000
+
+// DRIVER 1
+#define DRIVER_1_SLEEP_PIN 4
+#define DRIVER_1_FAULT_PIN 3
+
+#define DRIVER_1_IN_1_PIN 1
+#define DRIVER_1_IN_2_PIN 2
+#define DRIVER_1_IN_3_PIN 5
+#define DRIVER_1_IN_4_PIN 6
+
+// DRIVER 2
+#define DRIVER_2_SLEEP_PIN 12
+#define DRIVER_2_FAULT_PIN 11
+
+#define DRIVER_2_IN_1_PIN 9
+#define DRIVER_2_IN_2_PIN 10
+#define DRIVER_2_IN_3_PIN 13
+#define DRIVER_2_IN_4_PIN 14
+
+#endif
