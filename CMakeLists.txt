@@ -39,12 +39,18 @@ add_executable(autocar
     autocar.cpp
     Driver.cpp
     Motor.cpp
+    I2CMultiplexer.cpp
+    DistanceSensor.hpp
     )
 
 # pull in common dependencies
-target_link_libraries(autocar pico_stdlib hardware_pwm pico_stdio_usb)
+target_link_libraries(autocar pico_stdlib hardware_pwm pico_stdio_usb hardware_i2c)
 
 # create map/bin/hex file etc.
 pico_add_extra_outputs(autocar)
+
+# usb
+pico_enable_stdio_usb(autocar 1)
+pico_enable_stdio_uart(autocar 0)
 
 # add url via pico_set_program_url

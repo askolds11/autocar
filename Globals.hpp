@@ -22,4 +22,13 @@
 #define DRIVER_2_IN_3_PIN 13
 #define DRIVER_2_IN_4_PIN 14
 
+// I2C MULTIPLEXER
+#define I2C_INST i2c0
+#define I2C_SDA 18
+#define I2C_SCL 19
+
+#define I2C_A0 22
+#define I2C_A1 21
+#define I2C_A2 20
+
 #endif

@@ -4,7 +4,7 @@
 #include "Globals.hpp"
 #include <hardware/gpio.h>
 
-Motor::Motor(int in1Pin, int in2Pin): in1Pin(in1Pin), in2Pin(in2Pin)
+Motor::Motor(int in1Pin, int in2Pin) : in1Pin(in1Pin), in2Pin(in2Pin)
 {
     this->initPins();
 }
@@ -30,7 +30,7 @@ void Motor::setSpeedAndDirection(float speed, bool forward)
 void Motor::setSpeed(float speed)
 {
     this->speed = speed;
-    
+
     int pwmPin = this->forwardDir ? this->in1Pin : this->in2Pin;
     int dirPin = this->forwardDir ? this->in2Pin : this->in1Pin;
 
@@ -41,7 +41,8 @@ void Motor::setSpeed(float speed)
 void Motor::setDirection(bool forward)
 {
     // If direction is the same, do nothing
-    if (this->forwardDir == forward) {
+    if (this->forwardDir == forward)
+    {
         return;
     }
 

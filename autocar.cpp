@@ -2,6 +2,8 @@
 #include "pico/stdio_usb.h"
 #include "Globals.hpp"
 #include "Driver.hpp"
+#include <stdio.h>
+#include "I2CMultiplexer.hpp"
 
 int main()
 {
@@ -13,8 +15,7 @@ int main()
         DRIVER_1_IN_3_PIN,
         DRIVER_1_IN_4_PIN,
         DRIVER_1_SLEEP_PIN,
-        DRIVER_1_FAULT_PIN
-    );
+        DRIVER_1_FAULT_PIN);
 
     Driver driver2 = Driver(
         DRIVER_2_IN_1_PIN,
@@ -22,21 +23,30 @@ int main()
         DRIVER_2_IN_3_PIN,
         DRIVER_2_IN_4_PIN,
         DRIVER_2_SLEEP_PIN,
-        DRIVER_2_FAULT_PIN
-    );
+        DRIVER_2_FAULT_PIN);
 
-    driver1.enable();
+    I2CMultiplexer multiplexer = I2CMultiplexer(
+        I2C_A0,
+        I2C_A1,
+        I2C_A2,
+        I2C_SDA,
+        I2C_SCL,
+        I2C_INST);
 
-    driver1.motors[0].setSpeed(50);
-    driver1.motors[1].setSpeed(50);
+    // driver1.enable();
 
-    driver2.enable();
+    // driver1.motors[0].setSpeed(50);
+    // driver1.motors[1].setSpeed(50);
 
-    driver2.motors[0].setSpeed(50);
-    driver2.motors[1].setSpeed(50);
+    // driver2.enable();
 
-    while(true) {
-        
+    // driver2.motors[0].setSpeed(50);
+    // driver2.motors[1].setSpeed(50);
+
+    while (true)
+    {
+        printf("Hello World From Pi Pico USB CDC\n");
+        sleep_ms(100);
     }
 
     // while (true)

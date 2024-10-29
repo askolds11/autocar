@@ -18,7 +18,7 @@ private:
 
 public:
     Motor(int in1Pin, int in2Pin);
-    /// @brief 
+    /// @brief
     void initPins();
 
     /// @brief Sets motor's speed and direction
