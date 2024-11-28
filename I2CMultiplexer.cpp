@@ -1,6 +1,7 @@
 #include "I2CMultiplexer.hpp"
 #include <hardware/gpio.h>
 #include "hardware/i2c.h"
+#include "pico/binary_info.h"
 
 I2CMultiplexer::I2CMultiplexer(int a0Pin, int a1Pin, int a2Pin, int sdaPin, int sclPin, i2c_inst *i2cInst)
     : a0Pin(a0Pin), a1Pin(a1Pin), a2Pin(a2Pin), sdaPin(sdaPin), sclPin(sclPin), i2cInst(i2cInst)
@@ -22,14 +23,17 @@ void I2CMultiplexer::initPins()
     gpio_put(this->a1Pin, 0);
     gpio_put(this->a2Pin, 0);
 
+    // I2C init
+    i2c_init(i2cInst, 100000);
+
     // I2C pins
-    gpio_set_dir(this->sdaPin, GPIO_FUNC_I2C);
-    gpio_set_dir(this->sclPin, GPIO_FUNC_I2C);
+    gpio_set_function(this->sdaPin, GPIO_FUNC_I2C);
+    gpio_set_function(this->sclPin, GPIO_FUNC_I2C);
     gpio_pull_up(this->sdaPin);
     gpio_pull_up(this->sclPin);
 
-    // I2C init
-    i2c_init(i2cInst, 400000);
+    //
+    bi_decl(bi_2pins_with_func(this->sdaPin, this->sclPin, GPIO_FUNC_I2C));
 }
 
 void I2CMultiplexer::setDevice(int number)

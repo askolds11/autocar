@@ -40,7 +40,9 @@ add_executable(autocar
     Driver.cpp
     Motor.cpp
     I2CMultiplexer.cpp
-    DistanceSensor.hpp
+    DistanceSensor.cpp
+    vl6180x/platform/cci-i2c/vl6180x_i2c.c
+    vl6180x/src/vl6180x_api.c
     )
 
 # pull in common dependencies
