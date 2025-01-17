@@ -5,77 +5,61 @@
 #include <stdio.h>
 #include "I2CMultiplexer.hpp"
 #include "DistanceSensor.hpp"
-#include "vl6180x/inc/vl6180x_api.h"
+#include "SpeedController.hpp"
 
-#define N_MEASURE_AVG   10
-
-/**
- * Implement Offset calibration as described in VL6180x Datasheet
- *
- * Device must be initialized
- *
- * @note device scaling wrap filter and xtalk setting are scraped !
- *  It is safer to reset and re init device when done
- * @warning  follow strictly procedure described in the device manual
- * @param myDev  The device
- * @return The offset value (signed interger)
- */
-int Sample_OffsetRunCalibration(VL6180xDev_t myDev)
+// Get distance of side.
+// -1 if too close
+// 999 if too far
+// 1000 if unknown
+int GetDistance(RangeError err1, RangeError err2, int dist1, int dist2)
 {
-    VL6180x_RangeData_t Range[N_MEASURE_AVG];
-    int32_t   RangeSum;
-    int status;
-    int i;
-    int offset;
-    int RealTargetDistance;
-
-    /* Real target distance is 50 mm in proximity ranging configuration (scaling x1) or 100 mm in extended-range configuration */
-    RealTargetDistance = (VL6180x_UpscaleGetScaling(myDev)==1) ? 50 : 100;
-    
-
-    /* Turn off wrap-around filter (to avoid first invalid distances and decrease number of I2C accesses at maximum) */
-    VL6180x_FilterSetState(myDev, 0);
-
-    /* Clear all interrupts */
-    status = VL6180x_ClearAllInterrupt(myDev);
-    if( status ){
-        printf("VL6180x_ClearAllInterrupt  fail");
+    if (err1 == RangeError::OK && err2 == RangeError::OK)
+    {
+        return (dist1 + dist2) / 2;
     }
-
-    /* Ask user to place a white target at know RealTargetDistance */
-    printf("Calibrating : place white target at %dmm",RealTargetDistance);
-    
-    /* Program a null offset */
-    VL6180x_SetOffsetCalibrationData(myDev, 0);
-    
-    /* Perform several ranging measurement */
-    for( i=0; i<N_MEASURE_AVG; i++){
-        status = VL6180x_RangePollMeasurement(myDev, &Range[i]);
-        if( status ){
-            printf("VL6180x_RangePollMeasurement  fail");
+    else if (err1 == RangeError::OK)
+    {
+        // if too close, override
+        if (err2 == RangeError::TOO_CLOSE)
+        {
+            return -1;
         }
-        if( Range[i].errorStatus != 0 ){
-            printf("No target detect");
+        // otherwise return the ok value
+        return dist1;
+    }
+    else if (err2 == RangeError::OK)
+    {
+        // if too close, override
+        if (err1 == RangeError::TOO_CLOSE)
+        {
+            return -1;
+        }
+        // otherwise return the ok value
+        return dist2;
+    }
+    else
+    {
+        // if one too close, return that
+        if (err1 == RangeError::TOO_CLOSE || err2 == RangeError::TOO_CLOSE)
+        {
+            return -1;
+        }
+        else if (err1 == RangeError::TOO_FAR || RangeError::TOO_FAR)
+        {
+            return 999;
+        }
+        else
+        {
+            return 777;
         }
     }
-    
-    /* Calculate ranging average (sum) */
-    RangeSum=0;
-    for( i=0; i<N_MEASURE_AVG; i++){
-        RangeSum+= Range[i].range_mm;
-    }
-    
-    /* Calculate part-to-part offset */
-    offset = RealTargetDistance - (RangeSum/N_MEASURE_AVG);
-    printf("offset %d", offset);
-    return offset;
 }
 
 int main()
 {
     stdio_usb_init();
 
-    sleep_ms(5000);
+    printf("Starting\n");
 
     Driver driver1 = Driver(
         DRIVER_1_IN_1_PIN,
@@ -93,6 +77,12 @@ int main()
         DRIVER_2_SLEEP_PIN,
         DRIVER_2_FAULT_PIN);
 
+    printf("Drivers done\n");
+
+    SpeedController speedController = SpeedController(&driver1, &driver2);
+
+    printf("Speed controller done\n");
+
     I2CMultiplexer multiplexer = I2CMultiplexer(
         I2C_A0,
         I2C_A1,
@@ -101,145 +91,425 @@ int main()
         I2C_SCL,
         I2C_INST);
 
-    multiplexer.setDevice(0);
+    printf("Multiplexer done\n");
 
-    DistanceSensor sensor = DistanceSensor(I2C_SDA, I2C_SCL, I2C_INST);
+    DistanceSensor sensorRB = DistanceSensor(I2C_SDA, I2C_SCL, I2C_INST, 0, &multiplexer);
+    DistanceSensor sensorRF = DistanceSensor(I2C_SDA, I2C_SCL, I2C_INST, 1, &multiplexer);
+    // DistanceSensor sensorAR = DistanceSensor(I2C_SDA, I2C_SCL, I2C_INST, 6, &multiplexer);
+    DistanceSensor sensorF = DistanceSensor(I2C_SDA, I2C_SCL, I2C_INST, 3, &multiplexer);
+    DistanceSensor sensorLF = DistanceSensor(I2C_SDA, I2C_SCL, I2C_INST, 4, &multiplexer);
+    DistanceSensor sensorLB = DistanceSensor(I2C_SDA, I2C_SCL, I2C_INST, 5, &multiplexer);
 
-    sleep_us(2000);
-    
-    printf("After sensor");
+    printf("After sensors\n");
 
-    MyDev_t test = { .i2cInst = I2C_INST, .i2cAddress = 0x29};
-    VL6180xDev_t myDev = &test;
-    VL6180x_RangeData_t Range;
+    // TODO: https://www.st.com/resource/en/datasheet/vl6180.pdf 2.15.4 calibration?
 
-    // VL6180x_RangeData_t Range;
-    // MyDev_Init(myDev);           // your code init device variable
-    // MyDev_SetChipEnable(myDev);  // your code assert chip enable
-    // MyDev_uSleep(1000);          // your code sleep at least 1 msec
-    printf("Initting data");
-    
-    VL6180x_InitData(myDev);
-    printf("Initted data");
+    // printf("Getting offsets\n");
+    // printf("Calibrate RB at 50mm\n");
+    // sleep_ms(10000);
+    // int offsetRB = sensorRB.sample_OffsetRunCalibration();
+    // printf("Calibrate RF at 50mm\n");
+    // sleep_ms(10000);
+    // int offsetRF = sensorRF.sample_OffsetRunCalibration();
+    // // printf("Calibrate AR at 50mm\n");
+    // // sleep_ms(10000);
+    // // int offsetAR = sensorAR.sample_OffsetRunCalibration();
+    // printf("Calibrate AL at 50mm\n");
+    // sleep_ms(10000);
+    // int offsetAL = sensorF.sample_OffsetRunCalibration();
+    // printf("Calibrate LF at 50mm\n");
+    // sleep_ms(10000);
+    // int offsetLF = sensorLF.sample_OffsetRunCalibration();
+    // printf("Calibrate LB at 50mm\n");
+    // sleep_ms(10000);
+    // int offsetLB = sensorLB.sample_OffsetRunCalibration();
 
-    VL6180x_Prepare(myDev);
-    printf("Prepared\n");
+    // printf("Reenabling filters\n");
+    // // TODO: Remove after hardcoding offsets
+    // sensorRB.enableFilter();
+    // sensorRF.enableFilter();
+    // // sensorAR.enableFilter();
+    // sensorF.enableFilter();
+    // sensorLF.enableFilter();
+    // sensorLB.enableFilter();
 
-    int offset;
+    // TODO: Hardcore offsets
+    // 26; 32; 3; 35; 16
+    // 27; 32; 3; 34; 16
+    // 26; 32; 4; 35; 17
+    printf("Settings offsets\n");
+    sensorRB.setOffsetCalibrationData(26);
+    sensorRF.setOffsetCalibrationData(32);
+    // sensorAR.setOffsetCalibrationData(offsetAR);
+    sensorF.setOffsetCalibrationData(3);
+    sensorLF.setOffsetCalibrationData(35);
+    sensorLB.setOffsetCalibrationData(16);
+
     int status;
-    /* run calibration */
-    printf("Calibrate 0 at 50mm!\n");
-    sleep_ms(5000);
-    offset = Sample_OffsetRunCalibration(myDev);
-
-    /* when possible reset re-init device otherwise set back required filter */
-    VL6180x_FilterSetState(myDev, 1);  // turn on wrap around filter again
-    
-    /* program offset */
-    VL6180x_SetOffsetCalibrationData(myDev, offset);
-
-    //
-    //
-    //
-    //
-    //
-
-    multiplexer.setDevice(1);
-
-    DistanceSensor sensor1 = DistanceSensor(I2C_SDA, I2C_SCL, I2C_INST);
-
-    sleep_us(2000);
-    
-    printf("After sensor");
-
-    MyDev_t test1 = { .i2cInst = I2C_INST, .i2cAddress = 0x29};
-    VL6180xDev_t myDev1 = &test1;
-    VL6180x_RangeData_t Range1;
-
-    // VL6180x_RangeData_t Range;
-    // MyDev_Init(myDev);           // your code init device variable
-    // MyDev_SetChipEnable(myDev);  // your code assert chip enable
-    // MyDev_uSleep(1000);          // your code sleep at least 1 msec
-    printf("Initting data");
-    
-    VL6180x_InitData(myDev1);
-    printf("Initted data");
-
-    VL6180x_Prepare(myDev1);
-    printf("Prepared\n");
-
-    int offset1;
     int status1;
-    /* run calibration */
-    printf("Calibrate 1 at 50mm!\n");
-    sleep_ms(5000);
-    offset1 = Sample_OffsetRunCalibration(myDev1);
 
-    /* when possible reset re-init device otherwise set back required filter */
-    VL6180x_FilterSetState(myDev1, 1);  // turn on wrap around filter again
-    
-    /* program offset */
-    VL6180x_SetOffsetCalibrationData(myDev1, offset1);
-    
+    printf("Enabling drivers\n");
+    driver1.enable();
+    driver2.enable();
 
-    // driver1.enable();
+    printf("Inverting driver\n");
+    driver1.motors[0].invertDirection(true);
+    driver1.motors[1].invertDirection(true);
 
-    // driver1.motors[0].setSpeed(50);
-    // driver1.motors[1].setSpeed(50);
+    RangeError errorRB;
+    RangeError errorRF;
+    // RangeError errorAR;
+    RangeError errorF;
+    RangeError errorLF;
+    RangeError errorLB;
 
-    // driver2.enable();
+    int distRB;
+    int distRF;
+    // int distAR;
+    int distF;
+    int distLF;
+    int distLB;
 
-    // driver2.motors[0].setSpeed(50);
-    // driver2.motors[1].setSpeed(50);
+    RangeError errorPrefB;
+    RangeError errorPrefF;
+    int distPrefB;
+    int distPrefF;
+    int distPrefAvg;
 
+    int minDistR;
+    int minDistL;
+
+    bool rightPreferred = true;
+    int spunTimes = 0;
+
+    printf("Starting\n");
     while (true)
     {
-        multiplexer.setDevice(0);
-        VL6180x_RangePollMeasurement(myDev, &Range);
-        if (Range.errorStatus == 0 ) {
-            printf("ZERO: %-40d \t | ", Range.range_mm);
+        // start measurment for all
+        sensorRB.rangeAsyncStart();
+        sensorRF.rangeAsyncStart();
+        // sensorAR.rangeAsyncStart();
+        sensorF.rangeAsyncStart();
+        sensorLF.rangeAsyncStart();
+        sensorLB.rangeAsyncStart();
+
+        // await all
+        sensorRB.rangeAsyncAwait();
+        sensorRF.rangeAsyncAwait();
+        // sensorAR.rangeAsyncAwait();
+        sensorF.rangeAsyncAwait();
+        sensorLF.rangeAsyncAwait();
+        sensorLB.rangeAsyncAwait();
+
+        // get errors
+        errorRB = sensorRB.getError();
+        errorRF = sensorRF.getError();
+        // errorAR = sensorAR.getError();
+        errorF = sensorF.getError();
+        errorLF = sensorLF.getError();
+        errorLB = sensorLB.getError();
+
+        // get distances
+        distRB = sensorRB.getDistance();
+        distRF = sensorRF.getDistance();
+        // distAR = sensorAR.getDistance();
+        distF = sensorF.getDistance();
+        distLF = sensorLF.getDistance();
+        distLB = sensorLB.getDistance();
+
+        // print sensors
+        sensorRB.printRange("RB");
+        sensorRF.printRange("RF");
+        // sensorAR.printRange("AR");
+        sensorF.printRange("AL");
+        sensorLF.printRange("LF");
+        sensorLB.printRange("LB");
+
+        minDistR = GetDistance(errorRB, errorRF, distRB, distRF);
+        minDistL = GetDistance(errorLB, errorLF, distLB, distLF);
+
+        if (minDistR < minDistL)
+        {
+            errorPrefB = errorRB;
+            errorPrefF = errorRF;
+            distPrefB = distRB;
+            distPrefF = distRF;
+            distPrefAvg = minDistR;
+            rightPreferred = true;
         }
-            // MyDev_ShowRange(myDev, Range.range_mm,0); // your code display range in mm
-        else {
-            printf("ZERO: %-40s \t | ", VL6180x_RangeGetStatusErrString(Range.errorStatus));
-            // printf("errorstatus %u\n", Range.errorStatus);
+        else if (minDistL < minDistR)
+        {
+            errorPrefB = errorLB;
+            errorPrefF = errorLF;
+            distPrefB = distLB;
+            distPrefF = distLF;
+            distPrefAvg = minDistL;
+            rightPreferred = false;
         }
-        multiplexer.setDevice(1);
-        VL6180x_RangePollMeasurement(myDev1, &Range1);
-        if (Range1.errorStatus == 0 ) {
-            printf("ONE: %d\n", Range1.range_mm);
+        else
+        {
+            if (rightPreferred)
+            {
+                errorPrefB = errorRB;
+                errorPrefF = errorRF;
+                distPrefB = distRB;
+                distPrefF = distRF;
+                distPrefAvg = minDistR;
+            }
+            else
+            {
+                errorPrefB = errorLB;
+                errorPrefF = errorLF;
+                distPrefB = distLB;
+                distPrefF = distLF;
+                distPrefAvg = minDistL;
+            }
         }
-            // MyDev_ShowRange(myDev, Range.range_mm,0); // your code display range in mm
-        else {
-            printf("ONE: %s\n", VL6180x_RangeGetStatusErrString(Range1.errorStatus));
-            // printf("errorstatus %u\n", Range.errorStatus);
+
+        // Front is clear. Assume unknown is too far as well.
+        if (errorF == RangeError::OK && distF >= MAX_FRONT || errorF == RangeError::TOO_FAR || errorF == RangeError::UNKNOWN)
+        {
+            // If both are OK, simple maths
+            if (errorPrefB == RangeError::OK && errorPrefF == RangeError::OK)
+            {
+                // If too far, try to get closer
+                if (distPrefAvg > PREFERRED_RANGE)
+                {
+                    // Turn until angle achieved
+                    if (distPrefB - distPrefF < TURNING_DIFF)
+                    {
+                        if (rightPreferred)
+                        {
+                            speedController.spinRight();
+                            spunTimes++;
+                        }
+                        else
+                        {
+                            speedController.spinLeft();
+                            spunTimes++;
+                        }
+                    }
+                    // Go forward after spinning
+                    else
+                        speedController.goForwards();
+                }
+                // If too close, try to get closer
+                else if (distPrefAvg <= MIN_RANGE)
+                {
+                    // Turn until angle achieved
+                    if (distPrefF - distPrefB < TURNING_DIFF)
+                    {
+                        if (rightPreferred)
+                        {
+                            speedController.spinLeft();
+                            spunTimes++;
+                        }
+                        else
+                        {
+                            speedController.spinRight();
+                            spunTimes++;
+                        }
+                    }
+                    // Go forward after spinning
+                    else
+                        speedController.goForwards();
+                }
+                // If front further than back
+                else if (distRF - distRB > MAX_DIFF)
+                {
+                    if (rightPreferred)
+                        speedController.spinRight();
+                    else
+                        speedController.spinLeft();
+                }
+                // If back further than front
+                else if (distRB - distRF > MAX_DIFF)
+                {
+                    if (rightPreferred)
+                        speedController.spinLeft();
+                    else
+                        speedController.spinRight();
+                }
+                // If ok, continue forwards
+                else
+                    speedController.goForwards();
+            }
+            // Front is measurable
+            else if (errorPrefF == RangeError::OK)
+            {
+                // If back is too close, spin to fix
+                if (errorPrefB == RangeError::TOO_CLOSE)
+                {
+                    if (rightPreferred)
+                        speedController.spinRight();
+                    else
+                        speedController.spinLeft();
+                }
+                // If back is too far, spin to fix
+                else if (errorPrefB == RangeError::TOO_FAR)
+                {
+                    if (rightPreferred)
+                        speedController.spinLeft();
+                    else
+                        speedController.spinRight();
+                }
+                // Unknown error, yolo
+                else
+                {
+                    speedController.goForwards();
+                }
+            }
+            // Back is measurable
+            else if (errorPrefB == RangeError::OK)
+            {
+                // If front is too close, spin to fix
+                if (errorPrefF == RangeError::TOO_CLOSE)
+                {
+                    if (rightPreferred)
+                        speedController.spinLeft();
+                    else
+                        speedController.spinRight();
+                }
+                // If front is too far, spin to fix
+                else if (errorPrefF == RangeError::TOO_FAR)
+                {
+                    if (rightPreferred)
+                        speedController.spinRight();
+                    else
+                        speedController.spinLeft();
+                }
+                // Unknown error, yolo
+                else
+                {
+                    speedController.goForwards();
+                }
+            }
+            // Both errors
+            else
+            {
+                // If too close, spin front away from the wall, then go forwards
+                if (errorPrefB == RangeError::TOO_CLOSE && errorPrefF == RangeError::TOO_CLOSE)
+                {
+                    // Turn for spin cycles
+                    if (spunTimes <= SPIN_CYCLES)
+                    {
+                        if (rightPreferred)
+                        {
+                            speedController.spinLeft();
+                            spunTimes++;
+                        }
+                        else
+                        {
+                            speedController.spinRight();
+                            spunTimes++;
+                        }
+                    }
+                    // Go forward after spinning
+                    else
+                        speedController.goForwards();
+                }
+                // If too far, spin front towards the wall, then go forwards
+                else if (errorPrefB == RangeError::TOO_FAR && errorPrefF == RangeError::TOO_FAR)
+                {
+                    // Turn for spin cycles
+                    if (spunTimes <= SPIN_CYCLES)
+                    {
+                        if (rightPreferred)
+                        {
+                            speedController.spinRight();
+                            spunTimes++;
+                        }
+                        else
+                        {
+                            speedController.spinLeft();
+                            spunTimes++;
+                        }
+                    }
+                    // Go forward after spinning
+                    else
+                        speedController.goForwards();
+                }
+                // If back too close, spin front towards wall
+                else if (errorPrefB == RangeError::TOO_CLOSE)
+                {
+                    if (rightPreferred)
+                    {
+                        speedController.spinRight();
+                    }
+                    else
+                    {
+                        speedController.spinLeft();
+                    }
+                }
+                // If front too close, spin front away from wall
+                else if (errorPrefF == RangeError::TOO_CLOSE)
+                {
+                    if (rightPreferred)
+                    {
+                        speedController.spinLeft();
+                    }
+                    else
+                    {
+                        speedController.spinRight();
+                    }
+                }
+                // Back/Front is too far, other is unknown (too far?)
+                else if (errorPrefB == RangeError::TOO_FAR)
+                {
+                    // Turn for spin cycles
+                    if (spunTimes <= SPIN_CYCLES)
+                    {
+                        if (rightPreferred)
+                        {
+                            speedController.spinRight();
+                            spunTimes++;
+                        }
+                        else
+                        {
+                            speedController.spinLeft();
+                            spunTimes++;
+                        }
+                    }
+                    // Go forward after spinning
+                    else
+                        speedController.goForwards();
+                }
+                // YOLO
+                else
+                {
+                    speedController.goForwards();
+                }
+            }
         }
-        // printf("Clearing interrupts...\n");
-        // sensor.clearInterrupts();
-        // printf("Starting...\n");
-        // sensor.startRange();
-        // // printf("Polling...\n");
-        // sensor.pollRange();
-        // // printf("Distance...\n");
-        // uint8_t distance = sensor.readRange();
-        // printf("%u\n", distance);
-        // // printf("Hello World From Pi Pico USB CDC\n");
-        // sensor.clearInterrupts();
-        // sleep_ms(100);
+        // Front is not clear. Turn immediately
+        else
+        {
+            // Reset spunTimes
+            spunTimes = 0;
+            if (rightPreferred)
+            {
+                // front obstructed, things on right, turn left
+                if (distPrefAvg < 777)
+                    speedController.spinLeft();
+                // front obstructed, nothing on right, turn right
+                else
+                    speedController.spinRight();
+            }
+            else
+            {
+                // front obstructed, things on left, turn right
+                if (minDistL < 777)
+                    speedController.spinRight();
+                // front obstructed, nothing on left, turn left
+                else
+                    speedController.spinLeft();
+            }
+        }
+
+        // If distance fixed, reset spunTimes
+        if (distPrefAvg <= PREFERRED_RANGE && distPrefAvg != -1)
+        {
+            spunTimes = 0;
+        }
     }
-
-    // while (true)
-    // {
-    //     pwm_set_gpio_level(pwmPin, getLevel(100));
-    //     counter++;
-    //     if (counter == 101) {
-    //         counter = 0;
-    //         pwmPin = pwmPin == DRIVER_1_IN_1_PIN ? DRIVER_1_IN_2_PIN : DRIVER_1_IN_1_PIN;
-    //         dirPin = dirPin == DRIVER_1_IN_1_PIN ? DRIVER_1_IN_2_PIN : DRIVER_1_IN_1_PIN;
-    //         pwm_set_gpio_level(pwmPin, getLevel(100));
-    //         pwm_set_gpio_level(dirPin, getLevel(0));
-    //     }
-    //     sleep_ms(20);
-    // }
 }
-

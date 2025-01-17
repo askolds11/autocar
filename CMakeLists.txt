@@ -41,6 +41,7 @@ add_executable(autocar
     Motor.cpp
     I2CMultiplexer.cpp
     DistanceSensor.cpp
+    SpeedController.cpp
     vl6180x/platform/cci-i2c/vl6180x_i2c.c
     vl6180x/src/vl6180x_api.c
     )

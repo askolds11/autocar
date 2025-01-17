@@ -3,9 +3,16 @@
 
 #include "pico/types.h"
 
+enum Direction {
+    FORWARDS,
+    BACKWARDS
+};
+
 class Motor
 {
 private:
+    Direction direction;
+    bool invert = false;
     bool forwardDir = false;
     float speed = 0;
     int in1Pin;
@@ -21,18 +28,13 @@ public:
     /// @brief
     void initPins();
 
-    /// @brief Sets motor's speed and direction
-    /// @param speed Speed (0-100)
-    /// @param forward Is forward direction
-    void setSpeedAndDirection(float speed, bool forward);
-
-    /// @brief Sets motor's speed
-    /// @param speed Speed (0-100)
-    void setSpeed(float speed);
-
     /// @brief Sets motor's direction
-    /// @param forward Is forward direction
-    void setDirection(bool forward);
+    /// @param value true/false
+    void invertDirection(bool value);
+
+    /// @brief Sets motor's speed and direction
+    /// @param speed Speed (-100-100), negative for backwards
+    void setSpeed(float speed);
 
     /// @brief Gets level for pwm_set_gpio_level function
     /// @param dutyCycle Duty cycle 0-100

@@ -5,12 +5,6 @@
 
 class Driver
 {
-    enum MotorOutput
-    {
-        FIRST = 0,
-        SECOND = 1
-    };
-
 private:
     int in1Pin;
     int in2Pin;

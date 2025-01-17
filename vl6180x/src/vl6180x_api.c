@@ -214,7 +214,6 @@ int VL6180x_WaitDeviceBooted(VL6180xDev_t dev)
 
 int VL6180x_InitData(VL6180xDev_t dev)
 {
-	printf("Test");
 	int status, dmax_status ;
 	int8_t offset;
 	uint8_t FreshOutReset;

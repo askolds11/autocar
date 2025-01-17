@@ -15,44 +15,38 @@ void Motor::initPins()
     this->setPwmPin(this->in2Pin, MOTOR_PWM_FREQ);
 }
 
-void Motor::setSpeedAndDirection(float speed, bool forward)
+void Motor::invertDirection(bool value)
 {
-    this->forwardDir = forward;
-    this->speed = speed;
-
-    int pwmPin = forward ? this->in1Pin : this->in2Pin;
-    int dirPin = forward ? this->in2Pin : this->in1Pin;
-
-    pwm_set_gpio_level(pwmPin, this->GetSpeed(speed));
-    pwm_set_gpio_level(dirPin, 0);
+    invert = value;
 }
+
 
 void Motor::setSpeed(float speed)
 {
-    this->speed = speed;
+    float actualSpeed = speed >= 0 ? speed : -speed;
+    Direction direction = speed >= 0 ? Direction::FORWARDS : Direction::BACKWARDS;
 
-    int pwmPin = this->forwardDir ? this->in1Pin : this->in2Pin;
-    int dirPin = this->forwardDir ? this->in2Pin : this->in1Pin;
+    // if invert, change direction
+    if (invert) {
+        direction = direction == Direction::FORWARDS ? Direction::BACKWARDS : Direction::FORWARDS;
+    }
 
-    pwm_set_gpio_level(pwmPin, this->GetSpeed(speed));
-    pwm_set_gpio_level(dirPin, 0);
-}
-
-void Motor::setDirection(bool forward)
-{
-    // If direction is the same, do nothing
-    if (this->forwardDir == forward)
-    {
+    // If same, don't do anything
+    if (this->speed == actualSpeed && this->direction == direction) {
         return;
     }
 
-    this->forwardDir = forward;
+    // Update stored values
+    this->speed = actualSpeed;
+    this->direction = direction;
 
-    int pwmPin = forward ? this->in1Pin : this->in2Pin;
-    int dirPin = forward ? this->in2Pin : this->in1Pin;
+    // Choose which pin is pwm or dir based on direction
+    int pwmPin = direction == Direction::FORWARDS ? this->in2Pin : this->in1Pin;
+    int dirPin = direction == Direction::FORWARDS ? this->in1Pin : this->in2Pin;
 
+    // Set pin values
     pwm_set_gpio_level(pwmPin, this->GetSpeed(speed));
-    pwm_set_gpio_level(dirPin, 0);
+    pwm_set_gpio_level(dirPin, 1); // slow decay
 }
 
 int Motor::GetSpeed(float dutyCycle)

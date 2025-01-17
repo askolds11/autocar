@@ -31,4 +31,14 @@
 #define I2C_A1 21
 #define I2C_A2 20
 
+// MOVEMENT
+#define CRUISE_SPEED 5
+#define TURN_SPEED 25
+#define MAX_DIFF 5
+#define PREFERRED_RANGE 130
+#define MIN_RANGE 85
+#define MAX_FRONT 160
+#define TURNING_DIFF 5
+#define SPIN_CYCLES 10
+
 #endif
